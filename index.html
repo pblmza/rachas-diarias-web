@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rachas Diarias</title>
+<style>
+  :root {
+    --bg: #f6f2ea; --card: #fffdf8; --ink: #2b2620; --muted: #8a7f70;
+    --accent: #c0654a; --accent-soft: #f3ddd4; --line: #e5dccc; --ok: #5e8a5c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px 60px; background: var(--bg); color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; }
+  header h1 { font-size: 30px; margin: 0 0 4px; font-weight: normal; letter-spacing: .5px; }
+  header p { margin: 0 0 28px; color: var(--muted); font-style: italic; font-size: 15px; }
+  .banner {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 20px; margin-bottom: 22px; font-size: 16px;
+  }
+  .banner.done { background: #eef4ec; border-color: #cfe0cc; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px 16px 14px; text-align: center; cursor: pointer;
+    transition: transform .06s ease, box-shadow .06s ease; user-select: none;
+  }
+  .card:hover { box-shadow: 0 3px 14px rgba(60,45,30,.10); }
+  .card:active { transform: scale(.98); }
+  .card.done { background: var(--accent-soft); border-color: var(--accent); }
+  .card .icon { font-size: 34px; line-height: 1; }
+  .card .name { font-size: 18px; margin: 10px 0 6px; }
+  .card .streak { font-size: 26px; color: var(--accent); font-weight: bold; }
+  .card .streak.zero { color: var(--muted); opacity: .75; }
+  .card .meta { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .card .cta { margin-top: 10px; font-size: 13px; }
+  .card.done .cta { color: var(--ok); }
+  .card .checkline { margin-top: 10px; font-size: 20px; color: var(--muted); }
+  .card.done .checkline { color: var(--accent); }
+  .timer-btn {
+    margin-top: 10px; font-size: 13px; color: var(--accent); background: none;
+    border: 1px solid var(--accent); border-radius: 8px; padding: 4px 14px;
+    cursor: pointer; font-family: inherit;
+  }
+  .timer-btn:hover { background: var(--accent-soft); }
+  .card.done .timer-btn { display: none; }
+  .card .count { font-size: 22px; color: var(--accent); font-weight: bold; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .card .cancel {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 12px; font-family: inherit; text-decoration: underline; margin-top: 4px;
+  }
+  .cell.weekend { background: #efe8da; }
+  .week-head.weekend { color: var(--muted); opacity: .65; }
+  .week-head .dnum { display: block; font-size: 9px; }
+  .note { text-align: center; font-size: 15px; color: var(--accent); min-height: 20px; margin-top: 14px; font-style: italic; }
+  .streak-line { text-align: center; color: var(--muted); font-size: 14px; margin: 20px 0 8px; font-style: italic; }
+  .week {
+    display: grid; grid-template-columns: 92px repeat(7, 1fr); gap: 6px; align-items: center;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 12px;
+  }
+  .week .rowlabel { font-size: 13.5px; color: var(--ink); text-align: left; padding-right: 8px; font-style: italic; }
+  .cell {
+    height: 26px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted);
+  }
+  .cell.hit { background: var(--accent); border-color: var(--accent); }
+  .cell.today { border-color: var(--ink); border-style: dashed; }
+  .week-head { font-size: 10px; color: var(--muted); text-align: center; padding-bottom: 2px; }
+  .week-head.today { color: var(--accent); font-weight: bold; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 26px; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Rachas Diarias</h1>
+    <p>Diez minutos bastan. Lo importante es que el día no quede en blanco.</p>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="streak-line" id="streakline"></div>
+
+  <div class="week" id="week"></div>
+
+  <div class="note" id="note" role="status"></div>
+
+  <footer>Solo se marca el día de hoy · el fin de semana es opcional: en blanco no rompe la racha.<br>
+  Tus datos viven en este navegador (localStorage); nada sale de tu computador.</footer>
+</div>
+
+<script>
+const HABITS = {
+  lectura:    { icon: "📖", name: "Lectura" },
+  videojuego: { icon: "🎮", name: "Videojuego" },
+  bajo:       { icon: "🎸", name: "Bajo" },
+};
+const HKEYS = ["lectura", "videojuego", "bajo"];
+const DKEY = "rachas_data_v1";
+const TKEY = "rachas_timers_v1";
+let days = loadDays();   // { "YYYY-MM-DD": {habit: true} }
+let S = null;            // estado calculado (como /api/state de la versión Flask)
+
+/* ---------- capa de datos (localStorage) ---------- */
+function fmtDate(d) {
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+function loadDays() {
+  try {
+    const o = JSON.parse(localStorage.getItem(DKEY));
+    if (o && typeof o.days === "object" && o.days) return o.days;
+  } catch (e) {}
+  return {};
+}
+function saveDays() {
+  localStorage.setItem(DKEY, JSON.stringify({ days: days }));
+}
+function isWeekend(d) { return d.getDay() === 0 || d.getDay() === 6; }
+
+/* ---------- lógica de racha (igual que app.py) ---------- */
+function streak(days, habit) {
+  // Fin de semana sin marcar: no rompe ni cuenta. Día de semana en blanco
+  // rompe, salvo HOY (la racha sigue viva hasta cerrar el día en blanco).
+  const d = new Date();
+  let n = 0, first = true;
+  for (;;) {
+    const row = days[fmtDate(d)];
+    if (row && row[habit]) n++;
+    else if (isWeekend(d)) { /* finde en blanco: sigue */ }
+    else if (first) { /* hoy sin marcar: sigue */ }
+    else break;
+    first = false;
+    d.setDate(d.getDate() - 1);
+  }
+  return n;
+}
+
+/* ---------- estado calculado (equivalente a /api/state) ---------- */
+function compute() {
+  const now = new Date();
+  const today = fmtDate(now);
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // lunes de esta semana
+  const week = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const row = days[fmtDate(d)] || {};
+    week.push({
+      date: fmtDate(d),
+      dow: ["L", "M", "X", "J", "V", "S", "D"][i],
+      day: d.getDate(),
+      is_today: fmtDate(d) === today,
+      is_weekend: i >= 5,
+      marks: { lectura: !!row.lectura, videojuego: !!row.videojuego, bajo: !!row.bajo },
+    });
+  }
+  const per_habit = {};
+  for (const h of HKEYS) {
+    const todayRow = days[today] || {};
+    per_habit[h] = {
+      done_today: !!todayRow[h],
+      streak: streak(days, h),
+      total: Object.values(days).filter(r => r[h]).length,
+      week_count: week.filter(w => w.marks[h]).length,
+    };
+  }
+  return {
+    today, habits: HKEYS.slice(), week, per_habit,
+    all_done_today: HKEYS.every(h => per_habit[h].done_today),
+  };
+}
+
+function toggle(h, value) {
+  const k = fmtDate(new Date());
+  days[k] = days[k] || {};
+  days[k][h] = (value === undefined) ? !days[k][h] : !!value;
+  saveDays();
+  S = compute();
+  render();
+}
+
+/* ---------- temporizador (idéntico a la versión Flask) ---------- */
+const timers = {};
+function saveTimers() {
+  const o = {};
+  for (const h in timers) o[h] = timers[h].end;
+  localStorage.setItem(TKEY, JSON.stringify(o));
+}
+function armTimer(h, end) {
+  timers[h] = { end: end, iv: setInterval(() => tickTimer(h), 250) };
+  saveTimers();
+}
+function tickTimer(h) {
+  const t = timers[h];
+  if (!t) return;
+  const remain = t.end - Date.now();
+  if (remain <= 0) { finishTimer(h); return; }
+  saveTimers(); // re-grabado periódico: la escritura nunca se pierde
+  const el = document.querySelector('[data-count="' + h + '"]');
+  if (el) {
+    el.textContent = String(Math.floor(remain / 60000)).padStart(2, "0") + ":" +
+      String(Math.floor((remain % 60000) / 1000)).padStart(2, "0");
+  }
+}
+function finishTimer(h) {
+  clearInterval(timers[h].iv);
+  delete timers[h];
+  saveTimers();
+  toggle(h, true);
+  showNote("⏱ 10 min de " + HABITS[h].name.toLowerCase() + " — marcado ✓");
+}
+function cancelTimer(h) {
+  if (timers[h]) { clearInterval(timers[h].iv); delete timers[h]; saveTimers(); }
+  render();
+}
+function startTimer(h) {
+  if (timers[h] || !S || S.per_habit[h].done_today) return;
+  armTimer(h, Date.now() + 10 * 60 * 1000);
+  render();
+}
+function restoreTimers() {
+  let o = {};
+  try { o = JSON.parse(localStorage.getItem(TKEY) || "{}"); } catch (e) {}
+  let armed = false;
+  for (const h in o) {
+    if (o[h] > Date.now() + 1000) { armTimer(h, o[h]); armed = true; }
+  }
+  if (armed) render();
+}
+function stopTimer(h) {
+  if (timers[h]) { clearInterval(timers[h].iv); delete timers[h]; saveTimers(); }
+}
+
+let noteTO = null;
+function showNote(t) {
+  const n = document.getElementById("note");
+  n.textContent = t;
+  if (noteTO) clearTimeout(noteTO);
+  noteTO = setTimeout(() => { n.textContent = ""; }, 6000);
+}
+
+/* ---------- render ---------- */
+function fmt(n) { return n === 1 ? "1 día" : n + " días"; }
+
+function render() {
+  const b = document.getElementById("banner");
+  if (S.all_done_today) {
+    b.className = "banner done";
+    b.innerHTML = "✅ Día completo. Buen cierre.";
+  } else {
+    const faltan = S.habits.filter(h => !S.per_habit[h].done_today)
+                           .map(h => HABITS[h].name.toLowerCase());
+    b.className = "banner";
+    b.innerHTML = "Quedan " + faltan.join(", ") + " para completar el día.";
+  }
+
+  const c = document.getElementById("cards");
+  c.innerHTML = "";
+  for (const h of S.habits) {
+    const p = S.per_habit[h];
+    if (p.done_today && timers[h]) stopTimer(h);
+    const el = document.createElement("div");
+    el.className = "card" + (p.done_today ? " done" : "");
+    el.setAttribute("data-habit", h);
+    let inner =
+      '<div class="icon">' + HABITS[h].icon + '</div>' +
+      '<div class="name">' + HABITS[h].name + '</div>' +
+      '<div class="streak' + (p.streak === 0 ? " zero" : "") + '">' + fmt(p.streak) + '</div>' +
+      '<div class="meta">racha · ' + p.week_count + '/7 esta semana · ' + p.total + ' en total</div>';
+    if (timers[h]) {
+      inner += '<div class="count" data-count="' + h + '">10:00</div>' +
+        '<button class="cancel" onclick="event.stopPropagation();cancelTimer(\'' + h + '\')">cancelar</button>';
+    } else if (p.done_today) {
+      inner += '<div class="cta">hecho ✓ (clic para desmarcar)</div>' +
+        '<div class="checkline">☑</div>';
+    } else {
+      inner += '<button class="timer-btn" onclick="event.stopPropagation();startTimer(\'' + h + '\')">⏱ temporizar 10 min</button>' +
+        '<div class="cta">o clic directo para marcar</div>' +
+        '<div class="checkline">☐</div>';
+    }
+    el.innerHTML = inner;
+    el.onclick = () => {
+      if (timers[h]) return;
+      if (p.done_today) { toggle(h, false); return; }
+      startTimer(h);
+    };
+    c.appendChild(el);
+  }
+
+  document.getElementById("streakline").textContent =
+    "Rachas vivas — " + S.habits.map(h => HABITS[h].name + ": " + S.per_habit[h].streak).join(" · ");
+
+  const w = document.getElementById("week");
+  w.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "rowlabel";
+  head.textContent = "esta semana";
+  w.appendChild(head);
+  for (const day of S.week) {
+    const hd = document.createElement("div");
+    hd.className = "week-head" + (day.is_today ? " today" : "") + (day.is_weekend ? " weekend" : "");
+    hd.innerHTML = day.dow + '<span class="dnum">' + day.day + '</span>';
+    w.appendChild(hd);
+  }
+  for (const h of S.habits) {
+    const lb = document.createElement("div");
+    lb.className = "rowlabel";
+    lb.textContent = HABITS[h].name.toLowerCase();
+    w.appendChild(lb);
+    for (const day of S.week) {
+      const cell = document.createElement("div");
+      cell.className = "cell" + (day.marks[h] ? " hit" : "") +
+        (day.is_today ? " today" : "") + (day.is_weekend ? " weekend" : "");
+      cell.textContent = day.marks[h] ? "✓" : (day.is_today ? "·" : "");
+      w.appendChild(cell);
+    }
+  }
+}
+
+S = compute();
+render();
+restoreTimers();
+</script>
+</body>
+</html>
